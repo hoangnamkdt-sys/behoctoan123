@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Bé Học Toán</title>
+
+  <!-- PWA -->
+  <meta name="theme-color" content="#ff69b4" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Bé Học Toán" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+    }
+
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+
+    .btn-bounce {
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+    .btn-bounce:active {
+      transform: translateY(4px);
+      box-shadow: none !important;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-8px) rotate(2deg); }
+    }
+    .cat-3d-anim {
+      animation: float 3s ease-in-out infinite;
+    }
+  </style>
+</head>
+
+<body class="bg-amber-50 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+
+    function BeHocToan() {
+
+      const { useState, useEffect, useRef } = React;
+
+      // =========================
+      // STATE & REFS
+      // =========================
+
+      const [score, setScore] = useState(0);
+      const [question, setQuestion] = useState(null);
+      const [answer, setAnswer] = useState("");
+      const [message, setMessage] = useState("");
+      const [stars, setStars] = useState(0);
+      const [mode, setMode] = useState("+");
+      const [maxNumber, setMaxNumber] = useState(10);
+      const [history, setHistory] = useState([]);
+      const [choices, setChoices] = useState([]);
+      const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+      const wrongQuestionsQueue = useRef([]);
+      const isFirstAttempt = useRef(true);
+
+      // =========================
+      // RANDOM
+      // =========================
+
+      const randomNumber = (max) => Math.floor(Math.random() * max) + 1;
+
+      // =========================
+      // FORMAT TEXT ĐỂ ĐỌC
+      // =========================
+
+      const formatSpeakText = (text) => {
+        return text
+          .replace(/\+/g, " cộng ")
+          .replace(/-/g, " trừ ")
+          .replace(/\*/g, " nhân ")
+          .replace(/\//g, " chia ")
+          .replace(/=/g, " bằng ")
+          .replace(/\?/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      };
+
+      // =========================
+      // SPEAK (GIỌNG NỮ TIẾNG VIỆT)
+      // =========================
+
+      const speak = (text) => {
+        if (!window.speechSynthesis) return;
+
+        speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = "vi-VN";
+        msg.rate = 0.9;
+        msg.pitch = 1.1;
+        msg.volume = 1;
+
+        const voices = speechSynthesis.getVoices();
+        
+        const femaleViVoice = voices.find(v => 
+          v.lang.includes("vi") && 
+          (v.name.toLowerCase().includes("hoaimy") || 
+           v.name.toLowerCase().includes("linh") || 
+           v.name.toLowerCase().includes("female") || 
+           v.name.toLowerCase().includes("google"))
+        ) || voices.find(v => v.lang.includes("vi"));
+
+        if (femaleViVoice) {
+          msg.voice = femaleViVoice;
+        }
+
+        speechSynthesis.speak(msg);
+      };
+
+      // =========================
+      // TẠO CÂU HỎI
+      // =========================
+
+      const generateQuestion = () => {
+        let text = "";
+        let result = 0;
+        let isReviewQuestion = false;
+
+        if (wrongQuestionsQueue.current.length > 0 && Math.random() < 0.4) {
+          const reviewItem = wrongQuestionsQueue.current.shift();
+          text = reviewItem.text;
+          result = reviewItem.result;
+          isReviewQuestion = true;
+        } else {
+          let a = randomNumber(maxNumber);
+          let b = randomNumber(maxNumber);
+
+          if (mode === "+") {
+            if (a + b > maxNumber) {
+              b = Math.max(0, maxNumber - a);
+            }
+            text = `${a} + ${b} = ?`;
+            result = a + b;
+          } else if (mode === "-") {
+            if (b > a) {
+              [a, b] = [b, a];
+            }
+            text = `${a} - ${b} = ?`;
+            result = a - b;
+          } else {
+            if (Math.random() > 0.5) {
+              if (a + b > maxNumber) {
+                b = Math.max(0, maxNumber - a);
+              }
+              text = `${a} + ${b} = ?`;
+              result = a + b;
+            } else {
+              if (b > a) {
+                [a, b] = [b, a];
+              }
+              text = `${a} - ${b} = ?`;
+              result = a - b;
+            }
+          }
+        }
+
+        isFirstAttempt.current = !isReviewQuestion;
+        setQuestion({ text, result });
+
+        const fake1 = result + randomNumber(3);
+        const fake2 = Math.max(0, result - randomNumber(2));
+        const fake3 = result + randomNumber(5);
+
+        const arr = [result, fake1, fake2, fake3]
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .sort(() => Math.random() - 0.5);
+
+        while (arr.length < 4) {
+          arr.push(randomNumber(maxNumber));
+        }
+
+        setChoices(arr.sort(() => Math.random() - 0.5));
+        setAnswer("");
+
+        setTimeout(() => {
+          speak((isReviewQuestion ? "Thử lại nào. " : "Bé hãy tính. ") + formatSpeakText(text));
+        }, 400);
+      };
+
+      // =========================
+      // INIT
+      // =========================
+
+      useEffect(() => {
+        setTimeout(() => {
+          speechSynthesis.getVoices();
+        }, 200);
+        generateQuestion();
+      }, [mode, maxNumber]);
+
+      // =========================
+      // CHECK ĐÁP ÁN
+      // =========================
+
+      const handleSelectAnswer = (selectedVal) => {
+        if (!question) return;
+
+        setAnswer(selectedVal.toString());
+
+        const correct = Number(selectedVal) === question.result;
+
+        if (correct) {
+          if (isFirstAttempt.current) {
+            setScore(prev => prev + 10);
+            setStars(prev => prev + 1);
+            setMessage("🎉 Chính xác! Bé xuất sắc lắm!");
+            speak("Chính xác! Bé xuất sắc lắm!");
+
+            setHistory(prev => [
+              { q: question.text, a: selectedVal, ok: true },
+              ...prev.slice(0, 5),
+            ]);
+          } else {
+            setMessage("👏 Đúng rồi! Lần sau cố gắng đúng ngay lần đầu nhé!");
+            speak("Đúng rồi! Lần sau cố gắng đúng ngay lần đầu nhé!");
+
+            setHistory(prev => [
+              { q: question.text + " (Thử lại)", a: selectedVal, ok: true },
+              ...prev.slice(0, 5),
+            ]);
+          }
+
+          setTimeout(() => {
+            generateQuestion();
+            setMessage("");
+          }, 1300);
+
+        } else {
+          wrongQuestionsQueue.current.push({
+            text: question.text,
+            result: question.result
+          });
+
+          isFirstAttempt.current = false;
+
+          setMessage(`❌ Sai rồi. Đáp án đúng là ${question.result}`);
+          speak(`Sai rồi. Đáp án đúng là ${question.result}`);
+
+          setHistory(prev => [
+            { q: question.text, a: selectedVal, ok: false },
+            ...prev.slice(0, 5),
+          ]);
+        }
+      };
+
+      // =========================
+      // UI
+      // =========================
+
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-sky-200 via-pink-100 to-amber-100 p-3 sm:p-6 flex flex-col justify-between items-center relative overflow-x-hidden">
+          
+          {/* HEADER BAR */}
+          <div className="w-full max-w-4xl flex justify-between items-center bg-white/80 backdrop-blur-md rounded-3xl p-4 shadow-lg border-2 border-white mb-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-amber-100 border-2 border-amber-300 rounded-2xl px-4 py-1.5 flex items-center gap-2 shadow-inner">
+                <span className="text-2xl">🏆</span>
+                <span className="text-2xl font-black text-amber-600">{score}</span>
+              </div>
+              <div className="bg-pink-100 border-2 border-pink-300 rounded-2xl px-4 py-1.5 flex items-center gap-2 shadow-inner">
+                <span className="text-2xl">⭐</span>
+                <span className="text-2xl font-black text-pink-500">{stars}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-2xl shadow-md border-b-4 border-purple-700 active:border-b-0 btn-bounce flex items-center gap-2 font-bold text-lg"
+            >
+              ⚙️ <span className="hidden sm:inline">Cài đặt</span>
+            </button>
+          </div>
+
+          {/* MAIN CONTENT AREA */}
+          <div className="w-full max-w-4xl grid lg:grid-cols-3 gap-6 my-auto">
+            
+            {/* THẺ TÍNH TOÁN CHÍNH */}
+            <div className="lg:col-span-2 bg-white/90 backdrop-blur-md rounded-[35px] shadow-xl p-6 sm:p-8 border-4 border-white relative flex flex-col justify-between">
+              
+              {/* CHÚ MÈO 3D VÀ NÚT ĐỌC ĐỀ */}
+              <div className="flex items-center justify-between gap-4 mb-2">
+                <div className="flex items-center gap-3">
+                  {/* Ảnh Mèo 3D Hoạt Hình */}
+                  <img 
+                    src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Cat%20Face.png" 
+                    alt="Mèo 3D" 
+                    className="w-16 h-16 sm:w-20 sm:h-20 cat-3d-anim drop-shadow-md"
+                  />
+                  <div>
+                    <h2 className="text-lg font-black text-purple-600">Mèo Toán Học 3D</h2>
+                    <p className="text-xs font-bold text-gray-400">Phạm vi: {maxNumber} | P.tính: {mode === '+' ? 'Cộng' : mode === '-' ? 'Trừ' : 'Hỗn hợp'}</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => speak(formatSpeakText(question?.text || ""))}
+                  className="bg-sky-400 hover:bg-sky-500 text-white p-3 rounded-2xl shadow-md border-b-4 border-sky-600 active:border-b-0 btn-bounce flex items-center gap-1 font-bold text-sm"
+                >
+                  🔊 <span className="hidden sm:inline">Đọc đề</span>
+                </button>
+              </div>
+
+              {/* PHÉP TÍNH */}
+              <div className="text-center my-8">
+                <div className="text-6xl sm:text-8xl font-black text-slate-800 tracking-wider drop-shadow-md">
+                  {question?.text || "..."}
+                </div>
+              </div>
+
+              {/* ĐÁP ÁN TRẮC NGHIỆM */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                  {choices.map((item, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSelectAnswer(item)}
+                      className={`text-3xl sm:text-4xl font-black py-5 rounded-3xl shadow-md border-b-4 transition-all btn-bounce ${
+                        answer === item.toString()
+                          ? "bg-purple-600 text-white border-purple-800 scale-105"
+                          : "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* THÔNG BÁO VÀ BỎ QUA */}
+              <div className="mt-6 flex flex-col items-center min-h-[4rem] justify-center">
+                {message && (
+                  <div className="text-xl sm:text-2xl font-black text-pink-600 animate-pulse text-center">
+                    {message}
+                  </div>
+                )}
+                {!message && (
+                  <button
+                    onClick={generateQuestion}
+                    className="text-amber-600 hover:text-amber-700 font-bold text-sm flex items-center gap-1 underline underline-offset-4"
+                  >
+                    🎲 Bỏ qua, đổi câu khác
+                  </button>
+                )}
+              </div>
+
+            </div>
+
+            {/* SIDEBAR: LỊCH SỬ BÀI LÀM */}
+            <div className="bg-white/80 backdrop-blur-md rounded-[35px] shadow-xl p-6 border-4 border-white flex flex-col justify-between">
+              <div>
+                <div className="text-xl font-black text-slate-700 mb-4 flex items-center gap-2">
+                  <span>📚</span> Lịch sử bài làm
+                </div>
+
+                <div className="space-y-2.5 max-h-[280px] lg:max-h-[380px] overflow-y-auto pr-1">
+                  {history.length === 0 && (
+                    <div className="text-center text-gray-400 py-8 font-bold">
+                      Chưa có kết quả nào.<br/>Bé chọn đáp án nhé! ⭐
+                    </div>
+                  )}
+
+                  {history.map((item, index) => (
+                    <div
+                      key={index}
+                      className={`rounded-2xl p-3 text-sm sm:text-base font-bold flex justify-between items-center border-2 ${
+                        item.ok
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                      }`}
+                    >
+                      <span className="truncate max-w-[140px]">{item.q}</span>
+                      <span className="px-2 py-0.5 rounded-xl bg-white/60 shrink-0">
+                        {item.a} {item.ok ? "✅" : "❌"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {history.length > 0 && (
+                <button
+                  onClick={() => {
+                    setHistory([]);
+                    wrongQuestionsQueue.current = [];
+                  }}
+                  className="w-full text-xs font-bold text-gray-400 hover:text-rose-500 mt-4 text-center"
+                >
+                  Xóa lịch sử & câu làm sai
+                </button>
+              )}
+            </div>
+
+          </div>
+
+          {/* MODAL CÀI ĐẶT */}
+          {isSettingsOpen && (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-[35px] p-6 sm:p-8 max-w-md w-full shadow-2xl border-4 border-purple-200 relative">
+                
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-black text-purple-700 flex items-center gap-2">
+                    ⚙️ Tùy chọn học tập
+                  </h3>
+                  <button
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-10 h-10 rounded-full flex items-center justify-center bg-gray-100"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-black text-gray-500 mb-3 uppercase tracking-wider">
+                    🎯 Phạm vi phép tính
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[5, 10, 20, 50, 100].map((num) => (
+                      <button
+                        key={num}
+                        onClick={() => setMaxNumber(num)}
+                        className={`py-2.5 rounded-2xl text-lg font-bold border-2 transition-all ${
+                          maxNumber === num
+                            ? "bg-amber-400 text-amber-950 border-amber-500 shadow-md scale-105"
+                            : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-8">
+                  <label className="block text-sm font-black text-gray-500 mb-3 uppercase tracking-wider">
+                    🧮 Phép tính
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setMode("+")}
+                      className={`py-3 rounded-2xl text-base font-bold border-2 transition-all ${
+                        mode === "+"
+                          ? "bg-pink-500 text-white border-pink-600 shadow-md"
+                          : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      ➕ Cộng
+                    </button>
+                    <button
+                      onClick={() => setMode("-")}
+                      className={`py-3 rounded-2xl text-base font-bold border-2 transition-all ${
+                        mode === "-"
+                          ? "bg-sky-500 text-white border-sky-600 shadow-md"
+                          : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      ➖ Trừ
+                    </button>
+                    <button
+                      onClick={() => setMode("mix")}
+                      className={`py-3 rounded-2xl text-base font-bold border-2 transition-all ${
+                        mode === "mix"
+                          ? "bg-emerald-500 text-white border-emerald-600 shadow-md"
+                          : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      🎲 Cả hai
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white text-lg font-black py-3.5 rounded-2xl shadow-lg border-b-4 border-purple-800 active:border-b-0 btn-bounce"
+                >
+                  Hoàn tất
+                </button>
+
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<BeHocToan />);
+
+  </script>
+</body>
+</html>
