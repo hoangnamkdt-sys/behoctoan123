@@ -6,7 +6,6 @@
 
   <title>Bé Học Toán</title>
 
-  <!-- PWA -->
   <meta name="theme-color" content="#ff69b4" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -233,15 +232,15 @@
 
             setHistory(prev => [
               { q: question.text, a: selectedVal, ok: true },
-              ...prev.slice(0, 5),
+              ...prev.slice(0, 99),
             ]);
           } else {
-            setMessage("👏 Đúng rồi! Lần sau cố gắng đúng ngay lần đầu nhé!");
-            speak("Đúng rồi! Lần sau cố gắng đúng ngay lần đầu nhé!");
+            setMessage("👏 Đúng rồi!");
+            speak("Đúng rồi!");
 
             setHistory(prev => [
               { q: question.text + " (Thử lại)", a: selectedVal, ok: true },
-              ...prev.slice(0, 5),
+              ...prev.slice(0, 99),
             ]);
           }
 
@@ -263,7 +262,7 @@
 
           setHistory(prev => [
             { q: question.text, a: selectedVal, ok: false },
-            ...prev.slice(0, 5),
+            ...prev.slice(0, 99),
           ]);
         }
       };
@@ -370,14 +369,17 @@
 
             </div>
 
-            {/* SIDEBAR: LỊCH SỬ BÀI LÀM */}
+            {/* SIDEBAR: LỊCH SỬ BÀI LÀM (LƯU 100 LẦN) */}
             <div className="bg-white/80 backdrop-blur-md rounded-[35px] shadow-xl p-6 border-4 border-white flex flex-col justify-between">
               <div>
-                <div className="text-xl font-black text-slate-700 mb-4 flex items-center gap-2">
-                  <span>📚</span> Lịch sử bài làm
+                <div className="text-xl font-black text-slate-700 mb-4 flex items-center justify-between">
+                  <span className="flex items-center gap-2">📚 Lịch sử bài làm</span>
+                  <span className="text-xs px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full font-bold">
+                    {history.length}/100
+                  </span>
                 </div>
 
-                <div className="space-y-2.5 max-h-[280px] lg:max-h-[380px] overflow-y-auto pr-1">
+                <div className="space-y-2.5 h-[320px] lg:h-[420px] overflow-y-auto pr-1">
                   {history.length === 0 && (
                     <div className="text-center text-gray-400 py-8 font-bold">
                       Chưa có kết quả nào.<br/>Bé chọn đáp án nhé! ⭐
