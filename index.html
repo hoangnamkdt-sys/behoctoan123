@@ -70,7 +70,8 @@
       const [message, setMessage] = useState("");
       const [stars, setStars] = useState(0);
       const [mode, setMode] = useState("+");
-      const [maxNumber, setMaxNumber] = useState(10);
+      const [maxNumber, setMaxNumber] = useState(10); // Dùng cho phép Cộng/Trừ
+      const [maxTable, setMaxTable] = useState(5);   // Dùng cho Bảng cửu chương (Nhân/Chia)
       const [history, setHistory] = useState([]);
       const [choices, setChoices] = useState([]);
       const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -92,8 +93,8 @@
         return text
           .replace(/\+/g, " cộng ")
           .replace(/-/g, " trừ ")
-          .replace(/\*/g, " nhân ")
-          .replace(/\//g, " chia ")
+          .replace(/x/g, " nhân ")
+          .replace(/÷/g, " chia ")
           .replace(/=/g, " bằng ")
           .replace(/\?/g, "")
           .replace(/\s+/g, " ")
@@ -146,51 +147,63 @@
           result = reviewItem.result;
           isReviewQuestion = true;
         } else {
-          let a = randomNumber(maxNumber);
-          let b = randomNumber(maxNumber);
+          let currentMode = mode;
+          if (mode === "mix") {
+            const modes = ["+", "-", "*", "/"];
+            currentMode = modes[Math.floor(Math.random() * modes.length)];
+          }
 
-          if (mode === "+") {
+          let a, b;
+
+          if (currentMode === "+") {
+            a = randomNumber(maxNumber);
+            b = randomNumber(maxNumber);
             if (a + b > maxNumber) {
-              b = Math.max(0, maxNumber - a);
+              b = Math.max(1, maxNumber - a);
             }
             text = `${a} + ${b} = ?`;
             result = a + b;
-          } else if (mode === "-") {
-            if (b > a) {
-              [a, b] = [b, a];
-            }
+          } else if (currentMode === "-") {
+            a = randomNumber(maxNumber);
+            b = randomNumber(maxNumber);
+            if (b > a) [a, b] = [b, a];
             text = `${a} - ${b} = ?`;
             result = a - b;
-          } else {
-            if (Math.random() > 0.5) {
-              if (a + b > maxNumber) {
-                b = Math.max(0, maxNumber - a);
-              }
-              text = `${a} + ${b} = ?`;
-              result = a + b;
-            } else {
-              if (b > a) {
-                [a, b] = [b, a];
-              }
-              text = `${a} - ${b} = ?`;
-              result = a - b;
-            }
+          } else if (currentMode === "*") {
+            // Chọn thừa số thuộc bảng cửu chương <= maxTable
+            a = randomNumber(maxTable); 
+            b = randomNumber(10); // Nhân từ 1 đến 10
+            
+            // Xoay ngẫu nhiên vị trí thừa số
+            if (Math.random() > 0.5) [a, b] = [b, a];
+
+            text = `${a} x ${b} = ?`;
+            result = a * b;
+          } else if (currentMode === "/") {
+            // Tạo phép chia dựa trên bảng cửu chương <= maxTable
+            b = randomNumber(maxTable); // Số chia thuộc cửu chương đã chọn
+            const quotient = randomNumber(10); // Thương từ 1 đến 10
+            a = b * quotient; // Số bị chia
+
+            result = quotient;
+            text = `${a} ÷ ${b} = ?`;
           }
         }
 
         isFirstAttempt.current = !isReviewQuestion;
         setQuestion({ text, result });
 
-        const fake1 = result + randomNumber(3);
+        // Tạo 4 đáp án trắc nghiệm phù hợp
+        const fake1 = result + randomNumber(2);
         const fake2 = Math.max(0, result - randomNumber(2));
-        const fake3 = result + randomNumber(5);
+        const fake3 = result + randomNumber(4);
 
         const arr = [result, fake1, fake2, fake3]
           .filter((v, i, a) => a.indexOf(v) === i)
           .sort(() => Math.random() - 0.5);
 
         while (arr.length < 4) {
-          arr.push(randomNumber(maxNumber));
+          arr.push(randomNumber(Math.max(result + 5, 10)));
         }
 
         setChoices(arr.sort(() => Math.random() - 0.5));
@@ -210,7 +223,7 @@
           speechSynthesis.getVoices();
         }, 200);
         generateQuestion();
-      }, [mode, maxNumber]);
+      }, [mode, maxNumber, maxTable]);
 
       // =========================
       // CHECK ĐÁP ÁN
@@ -267,6 +280,15 @@
         }
       };
 
+      // Helper lấy thông tin chế độ đang học
+      const getModeInfo = () => {
+        if (mode === "+") return `Cộng (Phạm vi ${maxNumber})`;
+        if (mode === "-") return `Trừ (Phạm vi ${maxNumber})`;
+        if (mode === "*") return `Nhân (Cửu chương ≤ ${maxTable})`;
+        if (mode === "/") return `Chia (Cửu chương ≤ ${maxTable})`;
+        return `Hỗn hợp tất cả`;
+      };
+
       // =========================
       // UI
       // =========================
@@ -304,7 +326,6 @@
               {/* CHÚ THỎ VÀ NÚT ĐỌC ĐỀ */}
               <div className="flex items-center justify-between gap-4 mb-2">
                 <div className="flex items-center gap-3">
-                  {/* Ảnh Thỏ được căn chỉnh tròn & đổ bóng */}
                   <img 
                     src="./tho.jpg" 
                     alt="Thỏ Học Toán" 
@@ -313,7 +334,7 @@
                   />
                   <div>
                     <h2 className="text-lg font-black text-purple-600">Thỏ Thông Thái</h2>
-                    <p className="text-xs font-bold text-gray-400">Phạm vi: {maxNumber} | P.tính: {mode === '+' ? 'Cộng' : mode === '-' ? 'Trừ' : 'Hỗn hợp'}</p>
+                    <p className="text-xs font-bold text-gray-500">{getModeInfo()}</p>
                   </div>
                 </div>
 
@@ -370,7 +391,7 @@
 
             </div>
 
-            {/* SIDEBAR: LỊCH SỬ BÀI LÀM (LƯU 100 LẦN) */}
+            {/* SIDEBAR: LỊCH SỬ BÀI LÀM */}
             <div className="bg-white/80 backdrop-blur-md rounded-[35px] shadow-xl p-6 border-4 border-white flex flex-col justify-between">
               <div>
                 <div className="text-xl font-black text-slate-700 mb-4 flex items-center justify-between">
@@ -423,7 +444,7 @@
           {/* MODAL CÀI ĐẶT */}
           {isSettingsOpen && (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-[35px] p-6 sm:p-8 max-w-md w-full shadow-2xl border-4 border-purple-200 relative">
+              <div className="bg-white rounded-[35px] p-6 sm:p-8 max-w-md w-full shadow-2xl border-4 border-purple-200 relative max-h-[90vh] overflow-y-auto">
                 
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-2xl font-black text-purple-700 flex items-center gap-2">
@@ -437,35 +458,15 @@
                   </button>
                 </div>
 
+                {/* TỦY CHỌN PHÉP TÍNH */}
                 <div className="mb-6">
                   <label className="block text-sm font-black text-gray-500 mb-3 uppercase tracking-wider">
-                    🎯 Phạm vi phép tính
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[5, 10, 20, 50, 100].map((num) => (
-                      <button
-                        key={num}
-                        onClick={() => setMaxNumber(num)}
-                        className={`py-2.5 rounded-2xl text-lg font-bold border-2 transition-all ${
-                          maxNumber === num
-                            ? "bg-amber-400 text-amber-950 border-amber-500 shadow-md scale-105"
-                            : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-8">
-                  <label className="block text-sm font-black text-gray-500 mb-3 uppercase tracking-wider">
-                    🧮 Phép tính
+                    🧮 Chọn Phép tính
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => setMode("+")}
-                      className={`py-3 rounded-2xl text-base font-bold border-2 transition-all ${
+                      className={`py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
                         mode === "+"
                           ? "bg-pink-500 text-white border-pink-600 shadow-md"
                           : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
@@ -475,7 +476,7 @@
                     </button>
                     <button
                       onClick={() => setMode("-")}
-                      className={`py-3 rounded-2xl text-base font-bold border-2 transition-all ${
+                      className={`py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
                         mode === "-"
                           ? "bg-sky-500 text-white border-sky-600 shadow-md"
                           : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
@@ -484,17 +485,86 @@
                       ➖ Trừ
                     </button>
                     <button
+                      onClick={() => setMode("*")}
+                      className={`py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
+                        mode === "*"
+                          ? "bg-amber-500 text-white border-amber-600 shadow-md"
+                          : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      ✖️ Nhân
+                    </button>
+                    <button
+                      onClick={() => setMode("/")}
+                      className={`py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
+                        mode === "/"
+                          ? "bg-indigo-500 text-white border-indigo-600 shadow-md"
+                          : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      ➗ Chia
+                    </button>
+                    <button
                       onClick={() => setMode("mix")}
-                      className={`py-3 rounded-2xl text-base font-bold border-2 transition-all ${
+                      className={`col-span-2 py-3 rounded-2xl text-sm font-bold border-2 transition-all ${
                         mode === "mix"
                           ? "bg-emerald-500 text-white border-emerald-600 shadow-md"
                           : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                       }`}
                     >
-                      🎲 Cả hai
+                      🎲 Hỗn hợp (Cả 4)
                     </button>
                   </div>
                 </div>
+
+                {/* CÀI ĐẶT DÀNH CHO PHÉP NHÂN / CHIA */}
+                {(mode === "*" || mode === "/" || mode === "mix") && (
+                  <div className="mb-6 bg-amber-50 p-4 rounded-2xl border-2 border-amber-200">
+                    <label className="block text-sm font-black text-amber-800 mb-2 uppercase tracking-wider">
+                      ✖️➗ Bảng cửu chương cao nhất: <span className="text-xl text-pink-600">Bảng {maxTable}</span>
+                    </label>
+                    <p className="text-xs text-amber-700 mb-3">Đề bài chỉ xuất hiện phép nhân/chia từ Bảng 1 đến Bảng {maxTable}</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[2, 3, 4, 5, 6, 7, 8, 9].map((tbl) => (
+                        <button
+                          key={tbl}
+                          onClick={() => setMaxTable(tbl)}
+                          className={`py-2 rounded-xl text-base font-bold border-2 transition-all ${
+                            maxTable === tbl
+                              ? "bg-amber-500 text-white border-amber-600 shadow-md scale-105"
+                              : "bg-white border-amber-200 text-amber-800 hover:bg-amber-100"
+                          }`}
+                        >
+                          Bảng {tbl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* CÀI ĐẶT DÀNH CHO PHÉP CỘNG / TRỪ */}
+                {(mode === "+" || mode === "-" || mode === "mix") && (
+                  <div className="mb-8">
+                    <label className="block text-sm font-black text-gray-500 mb-2 uppercase tracking-wider">
+                      🎯 Phạm vi phép cộng / trừ
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[5, 10, 20, 50, 100].map((num) => (
+                        <button
+                          key={num}
+                          onClick={() => setMaxNumber(num)}
+                          className={`py-2.5 rounded-2xl text-lg font-bold border-2 transition-all ${
+                            maxNumber === num
+                              ? "bg-purple-500 text-white border-purple-600 shadow-md scale-105"
+                              : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <button
                   onClick={() => setIsSettingsOpen(false)}
