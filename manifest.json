@@ -1,0 +1,21 @@
+{
+  "short_name": "Bé Học Toán",
+  "name": "Bé Học Toán - Trò Chơi Toán Học Cho Bé",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Cat%20Face.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Cat%20Face.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#fef3c7",
+  "theme_color": "#ff69b4",
+  "display": "standalone",
+  "orientation": "portrait"
+}
