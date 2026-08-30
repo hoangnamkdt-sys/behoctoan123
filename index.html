@@ -45,7 +45,7 @@
       0%, 100% { transform: translateY(0px) rotate(0deg); }
       50% { transform: translateY(-8px) rotate(2deg); }
     }
-    .cat-3d-anim {
+    .rabbit-3d-anim {
       animation: float 3s ease-in-out infinite;
     }
   </style>
@@ -301,17 +301,18 @@
             {/* THẺ TÍNH TOÁN CHÍNH */}
             <div className="lg:col-span-2 bg-white/90 backdrop-blur-md rounded-[35px] shadow-xl p-6 sm:p-8 border-4 border-white relative flex flex-col justify-between">
               
-              {/* CHÚ MÈO 3D VÀ NÚT ĐỌC ĐỀ */}
+              {/* CHÚ THỎ VÀ NÚT ĐỌC ĐỀ */}
               <div className="flex items-center justify-between gap-4 mb-2">
                 <div className="flex items-center gap-3">
-                  {/* Ảnh Mèo 3D Hoạt Hình */}
+                  {/* Ảnh Thỏ được căn chỉnh tròn & đổ bóng */}
                   <img 
-                    src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Cat%20Face.png" 
-                    alt="Mèo 3D" 
-                    className="w-16 h-16 sm:w-20 sm:h-20 cat-3d-anim drop-shadow-md"
+                    src="./tho.jpg" 
+                    alt="Thỏ Học Toán" 
+                    className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-2xl rabbit-3d-anim drop-shadow-md border-2 border-pink-300"
+                    onError={(e) => { e.target.src = './tho.png'; }}
                   />
                   <div>
-                    <h2 className="text-lg font-black text-purple-600">Mèo Toán Học 3D</h2>
+                    <h2 className="text-lg font-black text-purple-600">Thỏ Thông Thái</h2>
                     <p className="text-xs font-bold text-gray-400">Phạm vi: {maxNumber} | P.tính: {mode === '+' ? 'Cộng' : mode === '-' ? 'Trừ' : 'Hỗn hợp'}</p>
                   </div>
                 </div>
@@ -512,6 +513,14 @@
 
     ReactDOM.createRoot(document.getElementById("root")).render(<BeHocToan />);
 
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js');
+      });
+    }
   </script>
 </body>
 </html>
