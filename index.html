@@ -15,6 +15,8 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Thư viện Canvas-Confetti cho hiệu ứng pháo hoa -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <style>
     body {
@@ -48,6 +50,15 @@
     .rabbit-3d-anim {
       animation: float 3s ease-in-out infinite;
     }
+
+    @keyframes popIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      70% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
   </style>
 </head>
 
@@ -70,20 +81,77 @@
       const [message, setMessage] = useState("");
       const [stars, setStars] = useState(0);
       const [mode, setMode] = useState("+");
-      const [maxNumber, setMaxNumber] = useState(10); // Dùng cho phép Cộng/Trừ
-      const [maxTable, setMaxTable] = useState(5);   // Dùng cho Bảng cửu chương (Nhân/Chia)
+      const [maxNumber, setMaxNumber] = useState(10); // Giới hạn phạm vi & kết quả tối đa là 10
+      const [maxTable, setMaxTable] = useState(5);   // Dùng cho Bảng cửu chương nếu chọn Nhân/Chia
       const [history, setHistory] = useState([]);
       const [choices, setChoices] = useState([]);
       const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+      const [streak, setStreak] = useState(0);
+      const [showBigRabbit, setShowBigRabbit] = useState(false);
+
+      // Cài đặt thời gian học (mặc định 15 phút = 900 giây)
+      const [selectedMinutes, setSelectedMinutes] = useState(15);
+      const [timeLeft, setTimeLeft] = useState(15 * 60);
+      const [isTimeUp, setIsTimeUp] = useState(false);
+      const [unlockCode, setUnlockCode] = useState("");
+      const [unlockError, setUnlockError] = useState("");
 
       const wrongQuestionsQueue = useRef([]);
       const isFirstAttempt = useRef(true);
 
       // =========================
-      // RANDOM
+      // QUẢN LÝ ĐẾM NGƯỢC THỜI GIAN
       // =========================
 
-      const randomNumber = (max) => Math.floor(Math.random() * max) + 1;
+      useEffect(() => {
+        if (isTimeUp) return;
+
+        const timer = setInterval(() => {
+          setTimeLeft((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setIsTimeUp(true);
+              speak("Đã hết giờ học rồi! Bé nghỉ tay một chút nhé.");
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        return () => clearInterval(timer);
+      }, [isTimeUp]);
+
+      const formatTime = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m < 10 ? "0" + m : m}:${s < 10 ? "0" + s : s}`;
+      };
+
+      const handleSelectDuration = (mins) => {
+        setSelectedMinutes(mins);
+        setTimeLeft(mins * 60);
+        setIsTimeUp(false);
+      };
+
+      const handleUnlock = (e) => {
+        e.preventDefault();
+        if (unlockCode.trim() === "1") {
+          setIsTimeUp(false);
+          setTimeLeft(selectedMinutes * 60);
+          setUnlockCode("");
+          setUnlockError("");
+          speak("Đã mở khóa! Bé tiếp tục học nhé.");
+        } else {
+          setUnlockError("Chưa chính xác. Nhập số 1 để tiếp tục nhé!");
+        }
+      };
+
+      // =========================
+      // RANDOM HỖ TRỢ TRONG KHOẢNG [min, max]
+      // =========================
+
+      const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
       // =========================
       // FORMAT TEXT ĐỂ ĐỌC
@@ -133,6 +201,25 @@
       };
 
       // =========================
+      // HIỆU ỨNG PHÁO HOA
+      // =========================
+      const triggerFireworks = () => {
+        if (typeof confetti === 'function') {
+          const duration = 3 * 1000;
+          const end = Date.now() + duration;
+
+          (function frame() {
+            confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
+            confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
+
+            if (Date.now() < end) {
+              requestAnimationFrame(frame);
+            }
+          })();
+        }
+      };
+
+      // =========================
       // TẠO CÂU HỎI
       // =========================
 
@@ -156,34 +243,30 @@
           let a, b;
 
           if (currentMode === "+") {
-            a = randomNumber(maxNumber);
-            b = randomNumber(maxNumber);
-            if (a + b > maxNumber) {
-              b = Math.max(1, maxNumber - a);
-            }
+            // Khống chế tổng a + b <= maxNumber (mặc định maxNumber = 10)
+            a = randomBetween(0, maxNumber);
+            b = randomBetween(0, maxNumber - a);
+            
             text = `${a} + ${b} = ?`;
             result = a + b;
           } else if (currentMode === "-") {
-            a = randomNumber(maxNumber);
-            b = randomNumber(maxNumber);
-            if (b > a) [a, b] = [b, a];
+            // Khống chế số bị trừ a <= maxNumber và a >= b
+            a = randomBetween(0, maxNumber);
+            b = randomBetween(0, a);
+
             text = `${a} - ${b} = ?`;
             result = a - b;
           } else if (currentMode === "*") {
-            // Chọn thừa số thuộc bảng cửu chương <= maxTable
-            a = randomNumber(maxTable); 
-            b = randomNumber(10); // Nhân từ 1 đến 10
-            
-            // Xoay ngẫu nhiên vị trí thừa số
+            a = randomBetween(1, maxTable); 
+            b = randomBetween(1, 10); 
             if (Math.random() > 0.5) [a, b] = [b, a];
 
             text = `${a} x ${b} = ?`;
             result = a * b;
           } else if (currentMode === "/") {
-            // Tạo phép chia dựa trên bảng cửu chương <= maxTable
-            b = randomNumber(maxTable); // Số chia thuộc cửu chương đã chọn
-            const quotient = randomNumber(10); // Thương từ 1 đến 10
-            a = b * quotient; // Số bị chia
+            b = randomBetween(1, maxTable); 
+            const quotient = randomBetween(1, 10); 
+            a = b * quotient; 
 
             result = quotient;
             text = `${a} ÷ ${b} = ?`;
@@ -193,20 +276,25 @@
         isFirstAttempt.current = !isReviewQuestion;
         setQuestion({ text, result });
 
-        // Tạo 4 đáp án trắc nghiệm phù hợp
-        const fake1 = result + randomNumber(2);
-        const fake2 = Math.max(0, result - randomNumber(2));
-        const fake3 = result + randomNumber(4);
+        // Tạo các đáp án nhiễu không vượt quá maxNumber nếu đang học Cộng/Trừ
+        const upperLimit = (mode === "+" || mode === "-") ? maxNumber : Math.max(result + 5, 10);
+        
+        let fakeOptions = new Set();
+        fakeOptions.add(result);
 
-        const arr = [result, fake1, fake2, fake3]
-          .filter((v, i, a) => a.indexOf(v) === i)
-          .sort(() => Math.random() - 0.5);
-
-        while (arr.length < 4) {
-          arr.push(randomNumber(Math.max(result + 5, 10)));
+        while (fakeOptions.size < 4) {
+          let delta = randomBetween(-3, 3);
+          let fakeVal = result + delta;
+          if (fakeVal >= 0 && fakeVal <= upperLimit) {
+            fakeOptions.add(fakeVal);
+          } else {
+            fakeOptions.add(randomBetween(0, upperLimit));
+          }
         }
 
-        setChoices(arr.sort(() => Math.random() - 0.5));
+        const arr = Array.from(fakeOptions).sort(() => Math.random() - 0.5);
+
+        setChoices(arr);
         setAnswer("");
 
         setTimeout(() => {
@@ -230,39 +318,80 @@
       // =========================
 
       const handleSelectAnswer = (selectedVal) => {
-        if (!question) return;
+        if (!question || isTimeUp) return;
 
         setAnswer(selectedVal.toString());
 
         const correct = Number(selectedVal) === question.result;
 
         if (correct) {
+          let currentStreak = streak;
+
           if (isFirstAttempt.current) {
             setScore(prev => prev + 10);
             setStars(prev => prev + 1);
-            setMessage("🎉 Chính xác! Bé xuất sắc lắm!");
-            speak("Chính xác! Bé xuất sắc lắm!");
+            
+            currentStreak = streak + 1;
+            setStreak(currentStreak);
 
             setHistory(prev => [
               { q: question.text, a: selectedVal, ok: true },
               ...prev.slice(0, 99),
             ]);
           } else {
-            setMessage("👏 Đúng rồi!");
-            speak("Đúng rồi!");
-
             setHistory(prev => [
               { q: question.text + " (Thử lại)", a: selectedVal, ok: true },
               ...prev.slice(0, 99),
             ]);
           }
 
+          let delayNextQuestion = 3000;
+
+          if (currentStreak === 3) {
+            const praise = "Chính xác! Bé giỏi quá, 3 câu đúng liên tiếp rồi!";
+            setMessage("🎉 " + praise);
+            speak(praise);
+            delayNextQuestion = 3500;
+          } else if (currentStreak === 5) {
+            const praise = "Tuyệt vời! Đúng 5 câu liên tiếp rồi, tặng bé một Thỏ Thông Thái!";
+            setMessage("🐰 " + praise);
+            speak(praise);
+            
+            setShowBigRabbit(true);
+            setTimeout(() => {
+              setShowBigRabbit(false);
+            }, 6000);
+
+            delayNextQuestion = 6500;
+          } else if (currentStreak === 10) {
+            const praise = "Quá đỉnh! Bé trả lời đúng 10 câu liên tiếp! Bé là thiên tài toán học!";
+            setMessage("🎆 " + praise);
+            speak(praise);
+            
+            triggerFireworks();
+            delayNextQuestion = 4500;
+          } else if (currentStreak >= 15 && currentStreak % 5 === 0) {
+            const praise = `Phi thường! Bé đã đúng ${currentStreak} câu liên tiếp! Siêu cao thủ toán học!`;
+            setMessage("🌟 " + praise);
+            speak(praise);
+            
+            triggerFireworks();
+            delayNextQuestion = 5000;
+          } else {
+            const praise = isFirstAttempt.current ? "Chính xác!" : "Đúng rồi!";
+            setMessage(isFirstAttempt.current ? "🎉 " + praise : "👏 " + praise);
+            speak(praise);
+            delayNextQuestion = 2500;
+          }
+
           setTimeout(() => {
             generateQuestion();
             setMessage("");
-          }, 1300);
+          }, delayNextQuestion);
 
         } else {
+          setStreak(0);
+
           wrongQuestionsQueue.current.push({
             text: question.text,
             result: question.result
@@ -280,10 +409,9 @@
         }
       };
 
-      // Helper lấy thông tin chế độ đang học
       const getModeInfo = () => {
-        if (mode === "+") return `Cộng (Phạm vi ${maxNumber})`;
-        if (mode === "-") return `Trừ (Phạm vi ${maxNumber})`;
+        if (mode === "+") return `Cộng (Kết quả ≤ ${maxNumber})`;
+        if (mode === "-") return `Trừ (Phạm vi ≤ ${maxNumber})`;
         if (mode === "*") return `Nhân (Cửu chương ≤ ${maxTable})`;
         if (mode === "/") return `Chia (Cửu chương ≤ ${maxTable})`;
         return `Hỗn hợp tất cả`;
@@ -296,25 +424,94 @@
       return (
         <div className="min-h-screen bg-gradient-to-b from-sky-200 via-pink-100 to-amber-100 p-3 sm:p-6 flex flex-col justify-between items-center relative overflow-x-hidden">
           
-          {/* HEADER BAR */}
-          <div className="w-full max-w-4xl flex justify-between items-center bg-white/80 backdrop-blur-md rounded-3xl p-4 shadow-lg border-2 border-white mb-4">
-            <div className="flex items-center gap-4">
-              <div className="bg-amber-100 border-2 border-amber-300 rounded-2xl px-4 py-1.5 flex items-center gap-2 shadow-inner">
-                <span className="text-2xl">🏆</span>
-                <span className="text-2xl font-black text-amber-600">{score}</span>
+          {/* MÀN HÌNH KHÓA KHI HẾT GIỜ HỌC */}
+          {isTimeUp && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4">
+              <div className="bg-white p-6 sm:p-8 rounded-[40px] border-8 border-rose-400 shadow-2xl flex flex-col items-center max-w-sm text-center animate-pop">
+                <div className="text-6xl mb-3">⏰</div>
+                <h3 className="text-2xl sm:text-3xl font-black text-rose-600 mb-2">
+                  Đã hết giờ học!
+                </h3>
+                <p className="text-gray-600 font-bold mb-6 text-sm sm:text-base">
+                  Bé hãy nghỉ ngơi một chút nhé! Nhập <span className="text-pink-600 font-black text-lg">1</span> để tiếp tục học.
+                </p>
+
+                <form onSubmit={handleUnlock} className="w-full space-y-3">
+                  <input
+                    type="number"
+                    value={unlockCode}
+                    onChange={(e) => setUnlockCode(e.target.value)}
+                    placeholder="Nhập số 1..."
+                    className="w-full text-center text-2xl font-black p-3.5 border-4 border-purple-300 rounded-2xl focus:outline-none focus:border-purple-500 bg-purple-50"
+                    autoFocus
+                  />
+                  {unlockError && (
+                    <p className="text-xs font-bold text-rose-500 animate-bounce">{unlockError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-lg font-black py-3 rounded-2xl shadow-lg border-b-4 border-emerald-700 active:border-b-0 btn-bounce"
+                  >
+                    🔓 Tiếp tục học
+                  </button>
+                </form>
               </div>
-              <div className="bg-pink-100 border-2 border-pink-300 rounded-2xl px-4 py-1.5 flex items-center gap-2 shadow-inner">
-                <span className="text-2xl">⭐</span>
-                <span className="text-2xl font-black text-pink-500">{stars}</span>
+            </div>
+          )}
+
+          {/* POPUP THỎ THÔNG THÁI (ĐÚNG 5 CÂU) */}
+          {showBigRabbit && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <div className="bg-white p-6 sm:p-8 rounded-[40px] border-8 border-amber-300 shadow-2xl flex flex-col items-center animate-pop max-w-xs sm:max-w-sm text-center">
+                <img 
+                  src="./tho.jpg" 
+                  alt="Thỏ Thông Thái" 
+                  className="w-44 h-44 sm:w-56 sm:h-56 object-cover rounded-3xl drop-shadow-xl border-4 border-pink-400 mb-4"
+                  onError={(e) => { e.target.src = './tho.png'; }}
+                />
+                <h3 className="text-2xl sm:text-3xl font-black text-pink-600 animate-bounce">
+                  🐰 Tặng Bé 1 Thỏ Thông Thái!
+                </h3>
+                <p className="text-amber-700 font-bold mt-1 text-sm sm:text-base">
+                  Đã xuất sắc trả lời đúng 5 câu liên tiếp!
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* HEADER BAR */}
+          <div className="w-full max-w-4xl flex justify-between items-center bg-white/80 backdrop-blur-md rounded-3xl p-3 sm:p-4 shadow-lg border-2 border-white mb-4">
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <div className="bg-amber-100 border-2 border-amber-300 rounded-2xl px-2.5 sm:px-4 py-1.5 flex items-center gap-1.5 shadow-inner">
+                <span className="text-lg sm:text-2xl">🏆</span>
+                <span className="text-lg sm:text-2xl font-black text-amber-600">{score}</span>
+              </div>
+              <div className="bg-pink-100 border-2 border-pink-300 rounded-2xl px-2.5 sm:px-4 py-1.5 flex items-center gap-1.5 shadow-inner">
+                <span className="text-lg sm:text-2xl">⭐</span>
+                <span className="text-lg sm:text-2xl font-black text-pink-500">{stars}</span>
+              </div>
+              <div className="bg-orange-100 border-2 border-orange-300 rounded-2xl px-2.5 sm:px-4 py-1.5 flex items-center gap-1 shadow-inner" title="Chuỗi câu đúng liên tiếp">
+                <span className="text-lg sm:text-2xl">🔥</span>
+                <span className="text-lg sm:text-2xl font-black text-orange-600">{streak}</span>
               </div>
             </div>
 
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="bg-purple-500 hover:bg-purple-600 text-white p-3 rounded-2xl shadow-md border-b-4 border-purple-700 active:border-b-0 btn-bounce flex items-center gap-2 font-bold text-lg"
-            >
-              ⚙️ <span className="hidden sm:inline">Cài đặt</span>
-            </button>
+            {/* ĐỒNG HỒ ĐẾM NGƯỢC */}
+            <div className="flex items-center gap-2">
+              <div className={`border-2 rounded-2xl px-3 py-1.5 flex items-center gap-1.5 font-black text-sm sm:text-lg shadow-inner ${
+                timeLeft <= 60 ? "bg-rose-100 border-rose-300 text-rose-600 animate-pulse" : "bg-sky-100 border-sky-300 text-sky-700"
+              }`}>
+                <span>⏳</span>
+                <span>{formatTime(timeLeft)}</span>
+              </div>
+
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="bg-purple-500 hover:bg-purple-600 text-white p-2.5 sm:p-3 rounded-2xl shadow-md border-b-4 border-purple-700 active:border-b-0 btn-bounce flex items-center gap-1.5 font-bold text-base sm:text-lg"
+              >
+                ⚙️ <span className="hidden sm:inline">Cài đặt</span>
+              </button>
+            </div>
           </div>
 
           {/* MAIN CONTENT AREA */}
@@ -375,13 +572,16 @@
               {/* THÔNG BÁO VÀ BỎ QUA */}
               <div className="mt-6 flex flex-col items-center min-h-[4rem] justify-center">
                 {message && (
-                  <div className="text-xl sm:text-2xl font-black text-pink-600 animate-pulse text-center">
+                  <div className="text-lg sm:text-2xl font-black text-pink-600 animate-pulse text-center">
                     {message}
                   </div>
                 )}
                 {!message && (
                   <button
-                    onClick={generateQuestion}
+                    onClick={() => {
+                      setStreak(0);
+                      generateQuestion();
+                    }}
                     className="text-amber-600 hover:text-amber-700 font-bold text-sm flex items-center gap-1 underline underline-offset-4"
                   >
                     🎲 Bỏ qua, đổi câu khác
@@ -458,7 +658,29 @@
                   </button>
                 </div>
 
-                {/* TỦY CHỌN PHÉP TÍNH */}
+                {/* CÀI ĐẶT THỜI GIAN HỌC */}
+                <div className="mb-6 bg-sky-50 p-4 rounded-2xl border-2 border-sky-200">
+                  <label className="block text-sm font-black text-sky-800 mb-2 uppercase tracking-wider">
+                    ⏱️ Thời gian học mỗi lần
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[15, 30, 45].map((mins) => (
+                      <button
+                        key={mins}
+                        onClick={() => handleSelectDuration(mins)}
+                        className={`py-2.5 rounded-xl text-base font-bold border-2 transition-all ${
+                          selectedMinutes === mins
+                            ? "bg-sky-500 text-white border-sky-600 shadow-md scale-105"
+                            : "bg-white border-sky-200 text-sky-800 hover:bg-sky-100"
+                        }`}
+                      >
+                        {mins} Phút
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* TÙY CHỌN PHÉP TÍNH */}
                 <div className="mb-6">
                   <label className="block text-sm font-black text-gray-500 mb-3 uppercase tracking-wider">
                     🧮 Chọn Phép tính
@@ -546,7 +768,7 @@
                 {(mode === "+" || mode === "-" || mode === "mix") && (
                   <div className="mb-8">
                     <label className="block text-sm font-black text-gray-500 mb-2 uppercase tracking-wider">
-                      🎯 Phạm vi phép cộng / trừ
+                      🎯 Phạm vi kết quả tối đa
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {[5, 10, 20, 50, 100].map((num) => (
@@ -559,7 +781,7 @@
                               : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                           }`}
                         >
-                          {num}
+                          Tối đa {num}
                         </button>
                       ))}
                     </div>
